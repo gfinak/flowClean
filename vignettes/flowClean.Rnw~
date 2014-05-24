@@ -1,0 +1,111 @@
+%\VignetteIndexEntry{flowClean}
+%\VignetteDepends{flowCore}
+%\VignetteDepends{flowClean}
+%\VignetteDepends{bit}
+%\VignetteDepends{changepoint}
+%\VignetteDepends{sfsmisc}
+%\VignettePackage{flowClean}
+\documentclass[12pt]{article}
+<<echo=FALSE>>=
+options(width=70)
+@ 
+\SweaveOpts{eps=FALSE,echo=TRUE,png=TRUE,pdf=FALSE,figs.only=TRUE,keep.source=TRUE}
+\usepackage{fullpage}
+\usepackage{times}
+\usepackage[colorlinks=TRUE,urlcolor=blue,citecolor=blue]{hyperref}
+
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rpackage}[1]{{\textit{#1}}}
+\newcommand{\Rmethod}[1]{{\texttt{#1}}}
+\newcommand{\Rfunarg}[1]{{\texttt{#1}}}
+\newcommand{\Rclass}[1]{{\textit{#1}}}
+\newcommand{\Rcode}[1]{{\texttt{#1}}}
+\newcommand{\software}[1]{\textsf{#1}}
+\newcommand{\R}{\software{R}}
+
+\title{flowClean}
+\author{Christopher Fletez-Brant, Pratip Chattopaddywaddiddlydoo}
+\date{Modified: April 1, 2014.  Compiled: \today}
+\begin{document}
+\setlength{\parskip}{0.2\baselineskip}
+\setlength{\parindent}{0pt}
+\setkeys{Gin}{width=\textwidth}
+\maketitle
+
+\section*{Introduction}
+
+This package contains the flowCore
+method for performing quality control on flow cytomery datasets.  This method is described in
+\cite{flowCleanpaper}.
+
+<<load,results=hide>>=
+library(flowCore)
+library(bit)
+library(changepoint)
+library(sfsmisc)
+source("~/Copy/flowclean/src/flowClean.R")
+@ 
+
+\section*{Data}
+
+<<data1>>=
+synPerturbed <- read.FCS("~/Copy/flowClean/data/synPerturbed.FCS")
+@ 
+
+\section*{Quality Control}
+
+The full details are available in \cite{flowCleanpaper}.  The motivating idea for this methodology
+is that populations in a flow experiment should be collected nearly uniformly with respect to time
+of collection.  The primary actor in flowClean is the \Rfunction{clean}, which tests for deviations
+from uniformity of collection.  Specifically, the collection time is discretized into $k$ periods,
+each of which can be considered a $N$-part composition 
+\begin{displaymath}
+  D_{j = 1..k} = [P_1, P_2, ..., P_N]
+\end{displaymath}
+with each $P_i$ the frequency of a population defined as +/- with respect to some threshold; 
+the default is the median fluorescent intensity (FI) of a flow parameter.  By default $k = 100$
+
+Each $D_j$ then udnergoes the centered log ratio (CLR) transformation [2]:
+\begin{displaymath}
+  CLR(D_j) = [ln\frac{P_1}{g(D_j)} ... ln\frac{P_N}{g(D_j)}]
+\end{displaymath}
+where
+\begin{displaymath}
+  g(D_j) = \sqrt[N]{P_1P_2...P_n}
+\end{displaymath}
+The $L_p$ norm of the subset $\left\{x \in D_j : x > 0\right\}$, denoted $L_p = \|D_j\|^+$, where 
+$p = |\left\{x \in D_j : x > 0\right\}|$, is then calculated for each $D_j$ and changepoint analysis 
+is performed on the set of $\|D_j\|^+$s.  If there are no changes then the FCS is assumed 
+to contain no errors.  Otherwise, the means of the periods are compared relative to the mean of the longest period
+between changepoints and thresholded according to some $k$, which empirically works well with $k = 1.3$.
+
+Actually calling \Rfunction{clean} requires only specifying an FCS file, which markers are to be analyzed,
+the name to be given to the output (directory structure can be included) and the file extension:
+
+<<cleancall>>=
+synPerturbed.c <- clean(synPerturbed, vectMarkers=c(5:16), "sample_out", ext="fcs")
+@ 
+
+The result is an FCS file identical to the input file with a new parameter, 'GoodVsBad', in which 'Good' cells
+all are given $FI < 10000$ and 'Bad' cells are given $FI \geq 20000$, which allows for easy
+programmatic gating out of 'Bad' cells from multiple FCS files.  This parameter can also be used in plots
+as any other flow parameter as well.
+
+\section*{SessionInfo}
+
+<<sessionInfo,results=tex,eval=TRUE,echo=FALSE>>=
+toLatex(sessionInfo())
+@ 
+
+\begin{thebibliography}{1}
+  \bibitem{flowCleanpaper} Fletez-Brant C, Spidlen J, Brinkman R, Chattopaddywaddydiddlydoo P.  Compositional
+    Data Analysis-based QC of flow cytometry.  Nature4000.
+\end{thebibliography}
+\end{document}
+
+% Local Variables:
+% LocalWords: LocalWords flow cytoemtry, compositional data analysis
+% LocalWords: clean, flowClean
+% End:
+
