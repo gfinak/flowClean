@@ -11,7 +11,7 @@ geo.mean <- function(vec){
 
 make_pops <- function(dF, cutoff, params, markers){
   dF <- dF[,params]
-  cnames <- colnames(dF)
+  cnames <- colnames(dF) 
   if (cutoff == "median"){ cutoff <- apply(dF, 2, function(x){ quantile(x, 0.5) })}
   else if (cutoff < 1){ cutoff <- apply(dF, 2, function(x, v) { quantile(x, v) }, v=cutoff) }
   else { cutoff <- rep(cutoff, length(params)) }
