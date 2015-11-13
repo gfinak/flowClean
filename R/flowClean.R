@@ -143,7 +143,7 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
   if (!is.null(bad)){
     if (bad[length(bad)] != numbins){
         ## changepoint library frequently off by 1
-        bad <- bad+1#c(bad, bad[length(bad)] + 1)
+        bad <- unique(bad+1)
     }
     dxVector[which(dxVector %in% bad)] <- runif(length(which(dxVector %in% bad)), min=10000, max=20000)
     GoodVsBad <- as.numeric(dxVector)
