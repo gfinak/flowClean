@@ -137,7 +137,7 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
   norms <- lp(out)
   ## was previously penalty=AIC, but with recent updates this works better/does what AIC used to
   pts <- cpt.mean(norms, method="PELT", penalty="Manual", pen.value=1)
-  bad <- getBad(pts)
+  bad <- getBad(pts, fcMax)
 
   ## what kind of bad do we report?
   if (!is.null(bad)){
