@@ -135,13 +135,15 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
   dxVector <- binVector
   out <- cen.log.ratio(out)
   norms <- lp(out)
-  pts <- cpt.mean(norms, method="PELT", penalty="AIC")
+  ## was previously penalty=AIC, but with recent updates this works better/does what AIC used to
+  pts <- cpt.mean(norms, method="PELT", penalty="Manual", pen.value=1)
   bad <- getBad(pts)
 
   ## what kind of bad do we report?
   if (!is.null(bad)){
     if (bad[length(bad)] != numbins){
-        bad <- c(bad, bad[length(bad)] + 1)
+        ## changepoint library frequently off by 1
+        bad <- bad+1#c(bad, bad[length(bad)] + 1)
     }
     dxVector[which(dxVector %in% bad)] <- runif(length(which(dxVector %in% bad)), min=10000, max=20000)
     GoodVsBad <- as.numeric(dxVector)
@@ -315,7 +317,7 @@ cl <- function(x, vectr, max.x){
     }
     else{
         if (abs(x - vectr[id+1]) == 1){ return(x) }
-        else { return(x:(vectr[id+1] - 1)) }
+        else { return(x:(vectr[id+1])) }
     }
 }
 
