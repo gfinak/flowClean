@@ -155,7 +155,7 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
       dev.off()
     }
 
-    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext) 
+    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out) 
     
     if (announce){
       print(paste("flowClean has identified problems in ", description(fF)$FILENAME, " with ", toString(bad),  ".", sep=""))
@@ -175,12 +175,12 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
 
     GoodVsBad <- as.numeric(dxVector)
     if (returnVector == TRUE){ return(GoodVsBad) }    
-    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext)
+    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out)
     return(outFCS)
   } 
 }
 
-makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext){
+makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops){
   ex <- exprs(fF)
   rs <- attr(exprs(fF), "ranges")
   rs <- c(rs, rs[1])
@@ -206,6 +206,9 @@ makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext)
   description(outFCS)[pnn] <- "GoodVsBad"
   description(outFCS)[pns] <- "GoodVsBad"
   description(outFCS)$`$PAR` <- NN
+  description(outFCS)$`StablePops` <- nrow(stablePops)
+  description(outFCS)$`nBins` <- numbins
+  description(outFCS)$`nCellCutoff` <- nCellCutoff
   description(outFCS)[flowCorePnRmax] <- max(20000, description(outFCS)$`flowCore_$P1Rmax`)
   description(outFCS)[flowCorePnRmin] <- 0
   parameters(outFCS)@data$range <- as.numeric(parameters(outFCS)@data$range)
