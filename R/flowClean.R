@@ -147,7 +147,6 @@ get_pops <- function(dF, cutoff, params, bins, nCellCutoff, markers, nstable){
       weird <- getUnlikely(sums, xx)
   })
   weird <- sort(unique(unlist(weirds)))
-browser()
   if (length(weird) > 0){
       out <- out[,-weird]
   }
