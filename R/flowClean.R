@@ -63,21 +63,13 @@ name_maker <- function(aphbit, markers, full=TRUE){
   return(newv)
 }
 
-get_pops <- function(dF, cutoff, params, bins, nCellCutoff, markers){
+get_pops <- function(dF, cutoff, params, bins, nCellCutoff, markers, nstable){
   poplist <- make_pops(dF, cutoff, params, markers)
-  if (length(which(poplist$lengths >= nCellCutoff)) < 5){
-    curr <- length(which(poplist$lengths >= nCellCutoff))
-    cut_grid <- rev(seq(0.05, 0.5, by=0.05))
-    while (curr < 5 & length(cut_grid) >= 1){
-      poplist <- make_pops(dF, cut_grid[1], params, markers)
-      curr <- length(which(poplist$lengths >= nCellCutoff))
-      cut_grid <- cut_grid[-1]
-    }
-    ## Currently dies if 'argument is of length 0'
-    if(cut_grid == 0.05 & curr < 5){
-      print("Sufficient populations cannot be identified by flowClean")
-    }
+  curr <- length(which(poplist$lengths >= nCellCutoff))
+  if(curr < nstable){
+      warning(paste0("Less than ", nstable," populations identified by flowClean"))
   }
+
   aphbit <- poplist$aphbit
   lengths <- poplist$lengths
   idx <- poplist$idx
@@ -96,27 +88,41 @@ get_pops <- function(dF, cutoff, params, bins, nCellCutoff, markers){
   rownames(perdf) <- pops
   good.idx <- which(lengths >= nCellCutoff)
   perdf.trim <- perdf[good.idx,1:length(bins)]
-  return(list("full"=perdf, "trim"=perdf.trim))
+  return(list("full"=perdf, "trim"=perdf.trim, "pops"=popdf))
 }
 
-clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCutoff=500,
-                  announce=TRUE, cutoff="median", diagnostic=FALSE, fcMax=1.3, returnVector=FALSE){
+ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCutoff=500,
+                  announce=TRUE, cutoff="median", diagnostic=FALSE, fcMax=1.3,
+                  returnVector=FALSE, nstable=5){
 
   if (dim(exprs(fF))[1] < 30000){
       warning("Too few cells in FCS for flowClean.")
+      GoodVsBad <- rep.int(0, times=nrow(exprs(fF)))
+      outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, 0, nCellCutoff, ext,
+                        stablePops=NULL)
+      return(outFCS)
   }
 
   markers <- parameters(fF)$name
   markers <- as.vector(markers)
 
   numbins <- ceiling(1/binSize)
-  ## test for whether time exists - either at all or more than 1 value
-  time.id <- grep("time", colnames(exprs(fF)), ignore.case=TRUE)
-  if (length(time.id) > 0){
-      time <- exprs(fF)[,time.id]
-      if (mean(time) == time[1]){ time <- 1:nrow(exprs(fF)) }    
+  time.id <- grep("time", colnames(exprs(fF)), ignore.case = TRUE)
+  if (length(time.id) > 0) {
+      time <- exprs(fF)[, time.id]
+      ## Have to deal with this here
+      ## if (mean(time) == time[1]) {
+      ##     time <- 1:nrow(exprs(fF))
+      ## }
   }
-  else { time <- 1:nrow(exprs(fF)) }
+  else {
+      warning("No Time Parameter Detected")
+      GoodVsBad <- rep.int(0, times=nrow(exprs(fF)))
+      outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, 0, nCellCutoff, ext,
+                        stablePops=NULL)
+      return(outFCS)      
+  }
+     
   # make sure time starts at 0
   if (min(time) > 0){ time <- time - min(time) }
   numOfEvents <- length(time)
@@ -128,46 +134,67 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
     return(vec)
   }, x=time, y=stepB, z=numbins )
   binVector <- unlist(lapply(c(1:numbins), function(i, x){ rep(i, length(unlist(x[[i]]))) }, x=bins))
-
-  out <- get_pops(exprs(fF), cutoff, params=vectMarkers, bins=bins, nCellCutoff, markers[vectMarkers])
+### out <- replace(out, is.na(out), 0)
+  out <- get_pops(exprs(fF), cutoff, params=vectMarkers, bins=bins, nCellCutoff, markers[vectMarkers], nstable)
   full <- out$full
+  pops <- out$pops
   out <- out$trim
   dxVector <- binVector
+  ## missing cells really screw everything up
+  pops <- apply(pops, c(1, 2), as.numeric)
+  sums <- apply(pops, 2, sum)
+  weirds <- lapply(c(37, 42, 51), function(xx){
+      weird <- getUnlikely(sums, xx)
+  })
+  weird <- sort(unique(unlist(weirds)))
+browser()
+  if (length(weird) > 0){
+      out <- out[,-weird]
+  }
   out <- cen.log.ratio(out)
   norms <- lp(out)
   ## was previously penalty=AIC, but with recent updates this works better/does what AIC used to
   pts <- cpt.mean(norms, method="PELT", penalty="Manual", pen.value=1)
   bad <- getBad(pts, fcMax)
-
+     
   ## what kind of bad do we report?
-  if (!is.null(bad)){
-    if (bad[length(bad)] != numbins){
+  if (!is.null(bad) | length(weird) > 0){
+    if (length(weird) > 0){
+        bad <- unique(c(unlist(fix.weird(bad, weird, numbins)), weird))
+    }
+    else if (bad[length(bad)] != numbins){
         ## changepoint library frequently off by 1
         bad <- unique(bad+1)
     }
-    dxVector[which(dxVector %in% bad)] <- runif(length(which(dxVector %in% bad)), min=10000, max=20000)
+    dxVector[which(dxVector %in% bad)] <- runif(length(which(dxVector %in% bad)),
+                                                min=10000, max=20000)
     GoodVsBad <- as.numeric(dxVector)
     if (returnVector == TRUE){ return(GoodVsBad) }  
     if (diagnostic){
-      png(paste(filePrefixWithDir,sep=".", numbins, nCellCutoff, "clr_percent_plot", "png"), type="cairo",
+      png(paste(filePrefixWithDir,sep=".", numbins, nCellCutoff,
+                "clr_percent_plot", "png"), type="cairo",
           height=1000, width=1000)
       diagnosticPlot(out,"CLR", bad)
       dev.off()
     }
 
-    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out) 
+    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff,
+                      ext, stablePops=out) 
     
     if (announce){
-      print(paste("flowClean has identified problems in ", description(fF)$FILENAME, " with ", toString(bad),  ".", sep=""))
+      print(paste("flowClean has identified problems in ",
+                  description(fF)$FILENAME, " with ", toString(bad),  ".", sep=""))
     }
     return(outFCS)
   }
   else{
     if (announce){
-        print(paste("flowClean detected no problems in ", description(fF)$FILENAME, ".", sep=""))
+        print(paste("flowClean detected no problems in ",
+                    description(fF)$FILENAME, ".", sep=""))
     }
     if (diagnostic){
-      png(paste(filePrefixWithDir,sep=".", numbins, nCellCutoff, "clr_percent_plot", "png"), type="cairo",
+      png(paste(filePrefixWithDir,sep=".", numbins, nCellCutoff,
+                "clr_percent_plot", "png"), type="cairo",
           height=1000, width=1000)
       diagnosticPlot(out,"CLR", bad)
       dev.off()
@@ -175,10 +202,77 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
 
     GoodVsBad <- as.numeric(dxVector)
     if (returnVector == TRUE){ return(GoodVsBad) }    
-    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out)
+    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff,
+                      ext, stablePops=out)
     return(outFCS)
   } 
 }
+
+makeSeries <- function(vec){
+    out <- list()
+    out[[1]] <-  holder <- vec[1]
+    counter <- 1
+    devnull <- lapply(diff(vec), function(xx){
+        holder <<- holder + xx
+        if (xx != 1){
+            counter <<- counter + 1
+            out[[counter]] <<- holder
+        }
+        else {
+            out[[counter]] <<- c(out[[counter]], holder)
+        }
+    })
+    out
+}
+
+fix.weird <- function(bad, weird, maxBin){
+    if(is.null(bad)){ return(weird) }
+    ser.b <- makeSeries(bad)
+    ser.w <- makeSeries(weird)
+    ## fix persistent off-by-one error
+    ser.b <- lapply(ser.b, function(xx){
+        ## with gaps in the data, we also miss the start of problems
+        if (min(xx) > 1){ xx <- c(min(xx) - 1, xx) }
+        if (max(xx) < maxBin){ return(xx + 1) }
+        else{ xx }
+    })
+    ## let's find the max per weird series and place it before
+    ## a bad series if possible
+    ## creates a vector whose indices are those of
+    ## 'weird series' and whose entries index 'bad series'
+    shifts <- sapply(sapply(ser.w, max), function(xx){
+        which(sapply(ser.b, min) > xx)[1]
+    })
+    devnull <- sapply(1:length(shifts[!is.na(shifts)]), function(ii){
+        bad.id <- shifts[ii]        
+        bad.offset <- length(ser.w[[ii]])
+        ser.b[[bad.id]] <<- ser.b[[bad.id]] + bad.offset
+    })
+    ser.b
+}
+
+
+loglik <- function(data, l){
+    n <- length(data)
+    sum(data, na.rm=TRUE) * log(l) - n*l
+}
+
+getUnlikely <- function(sums, seed){
+   set.seed(seed)
+   idx <- sample(1:length(sums))
+   names(sums) <- paste0("V", 1:length(sums))
+   sums <- sums[idx]
+   cll <- sapply(1:length(sums), function(ii){
+       if (ii == 1){return(loglik(sums[ii], sums[ii]))}
+       l <- loglik(sums[1:(ii-1)], mean(sums[1:(ii-1)]))
+       lnew <- loglik(sums[1:ii], mean(sums[1:ii]))
+       return(lnew - l)
+   })
+   weird <- which(cll <= 0)
+   weird <- as.numeric(gsub("V", "", names(sums)[weird]))
+   weird
+}
+
 
 makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops){
   ex <- exprs(fF)
