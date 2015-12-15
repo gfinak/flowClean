@@ -10,7 +10,7 @@ geo.mean <- function(vec){
 }
 
 make_pops <- function(dF, cutoff, params, markers){
-  dF <- dF[,params]
+  dF <- dF[,params,drop=FALSE]
   cnames <- colnames(dF) 
   if (cutoff == "median"){ cutoff <- apply(dF, 2, function(x){ quantile(x, 0.5) })}
   else if (cutoff < 1){ cutoff <- apply(dF, 2, function(x, v) { quantile(x, v) }, v=cutoff) }
@@ -74,7 +74,9 @@ get_pops <- function(dF, cutoff, params, bins, nCellCutoff, markers){
       cut_grid <- cut_grid[-1]
     }
     ## Currently dies if 'argument is of length 0'
-    if(cut_grid == 0.05 & curr < 5){
+    if(length(cut_grid)==0){
+      print("Sufficient populations cannot be identified by flowClean")
+    }else if(cut_grid == 0.05 & curr < 5){
       print("Sufficient populations cannot be identified by flowClean")
     }
   }
