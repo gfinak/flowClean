@@ -11,7 +11,7 @@ geo.mean <- function(vec){
 
 make_pops <- function(dF, cutoff, params, markers){
   dF <- dF[,params,drop=FALSE]
-  cnames <- colnames(dF) 
+  cnames <- colnames(dF)
   if (cutoff == "median"){ cutoff <- apply(dF, 2, function(x){ quantile(x, 0.5) })}
   else if (cutoff < 1){ cutoff <- apply(dF, 2, function(x, v) { quantile(x, v) }, v=cutoff) }
   else { cutoff <- rep(cutoff, length(params)) }
@@ -116,7 +116,7 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
   time.id <- grep("time", colnames(exprs(fF)), ignore.case=TRUE)
   if (length(time.id) > 0){
       time <- exprs(fF)[,time.id]
-      if (mean(time) == time[1]){ time <- 1:nrow(exprs(fF)) }    
+      if (mean(time) == time[1]){ time <- 1:nrow(exprs(fF)) }
   }
   else { time <- 1:nrow(exprs(fF)) }
   # make sure time starts at 0
@@ -149,7 +149,7 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
     }
     dxVector[which(dxVector %in% bad)] <- runif(length(which(dxVector %in% bad)), min=10000, max=20000)
     GoodVsBad <- as.numeric(dxVector)
-    if (returnVector == TRUE){ return(GoodVsBad) }  
+    if (returnVector == TRUE){ return(GoodVsBad) }
     if (diagnostic){
       png(paste(filePrefixWithDir,sep=".", numbins, nCellCutoff, "clr_percent_plot", "png"), type="cairo",
           height=1000, width=1000)
@@ -157,8 +157,8 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
       dev.off()
     }
 
-    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out) 
-    
+    outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out)
+
     if (announce){
       print(paste("flowClean has identified problems in ", description(fF)$FILENAME, " with ", toString(bad),  ".", sep=""))
     }
@@ -176,10 +176,10 @@ clean <- function(fF, vectMarkers, filePrefixWithDir, ext, binSize=0.01, nCellCu
    }
 
     GoodVsBad <- as.numeric(dxVector)
-    if (returnVector == TRUE){ return(GoodVsBad) }    
+    if (returnVector == TRUE){ return(GoodVsBad) }
     outFCS <- makeFCS(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops=out)
     return(outFCS)
-  } 
+  }
 }
 
 makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext, stablePops){
@@ -217,7 +217,7 @@ makeFCS <- function(fF, GoodVsBad, filePrefixWithDir, numbins, nCellCutoff, ext,
   parameters(outFCS)@data$minRange <- as.numeric(parameters(outFCS)@data$minRange)
   parameters(outFCS)@data$maxRange <- as.numeric(parameters(outFCS)@data$maxRange)
   outFCS
-}  
+}
 
 diagnosticPlot <- function(dF, ylab, bad){
   bins <- ncol(dF)
@@ -238,7 +238,7 @@ cen.log.ratio <- function(dF, minim=1e-7){
 
   #element-wise statistic
   m <- max(unlist(apply(dF, 1, function(x){return(length(x[which(x == 0)]))})))
-  if (n == m) { n <- n+1 }   
+  if (n == m) { n <- n+1 }
   d <- (n^2*ta)/((m+1)*(n-m))
   Ts <- (d*m*(m+1))/(n^2)
 
